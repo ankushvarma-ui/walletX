@@ -5,6 +5,10 @@ import userRoutes from "./routes/user.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import errorMiddleware from "./middleware/error.middleware.js";
 import walletRoutes from "./routes/wallet.routes.js";
+import walletSecurityRoutes from "./routes/walletSecurity.routes.js"; 
+import transactionRoutes from "./routes/transaction.routes.js";
+import ledgerRoutes from "./routes/ledger.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
 const app = express();
 
 app.use(morgan("dev"));
@@ -17,6 +21,17 @@ app.use(
     "/api/v1/wallet",
     walletRoutes
 );
+app.use(
+    "/api/notifications",
+    notificationRoutes
+);
+app.use("/api/transactions", transactionRoutes);
+app.use(
+  "/api/v1/wallet-security",
+  walletSecurityRoutes
+);
+app.use("/api/ledger", ledgerRoutes);
+
 
 //404 handler
 app.use((req, res, next) => {

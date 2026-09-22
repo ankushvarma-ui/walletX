@@ -1,34 +1,33 @@
 import pg from "pg";
+import "dotenv/config";
 
 const { Pool } = pg;
 
 const pool = new Pool({
-    user: "postgres",
-    password: "Ankush@3373",
-    host: "localhost",
-    port: 5432,
-    database: "walletX",
+  host: process.env.POSTGRES_HOST,
+  port: process.env.POSTGRES_PORT,
+  database: process.env.POSTGRES_DB,
+  user: process.env.POSTGRES_USER,
+  password: process.env.POSTGRES_PASSWORD,
 
-    ssl: false,
-
-    max: 20,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000
 });
 
 pool.on("error", (error) => {
-    console.error("Unexpected PostgreSQL pool error:", error);
+  console.error("Unexpected PostgreSQL pool error:", error);
 });
 
 export const connectDB = async () => {
-    const client = await pool.connect();
+  const client = await pool.connect();
 
-    try {
-        await client.query("SELECT 1");
-        console.log("PostgreSQL connected");
-    } finally {
-        client.release();
-    }
+  try {
+    await client.query("SELECT 1");
+    console.log("PostgreSQL connected");
+  } finally {
+    client.release();
+  }
 };
 
 export default pool;
