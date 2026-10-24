@@ -1,0 +1,35 @@
+.security-page {
+  width: 100%;
+}
+
+.shield-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 1.3rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.shield-icon.success {
+  background: var(--green-subtle);
+  color: var(--green);
+}
+
+.shield-icon.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge-card {
+  border-radius: 12px !important;
+  border-color: var(--line) !important;
+}
+
+.pin-set-note {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-top: 1rem;
+}

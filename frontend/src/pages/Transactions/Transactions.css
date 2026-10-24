@@ -1,0 +1,29 @@
+.transaction-list {
+  width: 100%;
+}
+
+.filter-tabs {
+  border-radius: 9px;
+  background-color: var(--pale) !important;
+}
+
+.filter-tab-btn {
+  border: 0;
+  background: transparent;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  border-radius: 7px;
+  transition: all 0.15s ease;
+}
+
+.filter-tab-btn:hover {
+  color: var(--navy);
+}
+
+.filter-tab-btn.active {
+  background: #fff;
+  color: var(--blue);
+  box-shadow: var(--shadow-sm);
+}

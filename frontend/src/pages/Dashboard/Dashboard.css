@@ -1,0 +1,167 @@
+.balance-card {
+  color: #fff;
+  background: linear-gradient(
+    135deg,
+    #11233f 0%,
+    #163259 50%,
+    #1958dc 100%
+  );
+  border-radius: var(--radius);
+  padding: 2.2rem;
+  box-shadow: 0 16px 36px -10px rgba(17, 35, 63, 0.28);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.balance-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.balance-label {
+  display: block;
+  font-size: 0.88rem;
+  color: #cfdef7;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.balance-card strong {
+  font-size: clamp(2.4rem, 5vw, 3.2rem);
+  letter-spacing: -0.04em;
+  display: block;
+  font-weight: 750;
+  line-height: 1.1;
+}
+
+.balance-micro-canvas {
+  width: 85px;
+  height: 85px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.balance-micro-canvas canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.balance-meta {
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.balance-meta small {
+  color: #cfdef7;
+  font-size: 0.85rem;
+}
+
+.wallet-code {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 0.3rem 0.65rem;
+  border-radius: 7px;
+  font-size: 0.9rem;
+}
+
+.copy-btn {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.copy-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.balance-card .status-chip {
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.balance-card .status-chip.on {
+  background: rgba(5, 133, 99, 0.3);
+  color: #a9f5da;
+  border: 1px solid rgba(5, 133, 99, 0.5);
+}
+
+.balance-card .status-chip.off {
+  background: rgba(196, 59, 78, 0.25);
+  color: #ffd8a8;
+  border: 1px solid rgba(196, 59, 78, 0.4);
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.1rem;
+  margin: 1.5rem 0;
+}
+
+.quick-action-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--shadow-sm);
+  color: var(--navy);
+}
+
+.quick-action-card:hover {
+  border-color: #bcd4ff;
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  color: var(--blue);
+}
+
+.quick-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--blue-subtle);
+  color: var(--blue);
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.quick-action-card:hover .quick-icon {
+  background: var(--blue);
+  color: #fff;
+}
+
+.quick-label {
+  font-size: 0.92rem;
+  font-weight: 650;
+  color: var(--navy);
+}
+
+@media (max-width: 767px) {
+  .quick-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.85rem;
+  }
+
+  .balance-card {
+    padding: 1.5rem;
+  }
+}
