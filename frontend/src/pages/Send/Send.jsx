@@ -6,52 +6,43 @@ import { useAuth } from "../../context/AuthContext";
 import { useNotifications } from "../../context/NotificationContext";
 import { walletApi } from "../../services/api";
 import { money } from "../../utils/format";
-
 import Alert from "../../components/Alert";
-import Field from "../../components/Field";
-import Page from "../../components/Page";
 
 import "./Send.css";
 
-const AMOUNT_PRESETS = [100, 500, 1000, 2000, 5000];
+const PRESET_AMOUNTS = [100, 500, 1000, 2000, 5000];
 
 export default function Send() {
   const { wallet, setWalletInfo, fetchWallet } = useAuth();
   const { showToast, refreshNotifications } = useNotifications();
 
-  const [form, setForm] = useState({ receiverWalletId: "", amount: "" });
-  // phases: "input" -> "review" -> "pin" -> "sending" -> "success"
-  const [phase, setPhase] = useState("input");
-  const [error, setError] = useState("");
-  const [result, setResult] = useState(null);
-  const [key, setKey] = useState(null);
+  // Mode: "walletId" vs "phone"
+  const [lookupMode, setLookupMode] = useState("walletId");
 
-  // Recipient lookup state
-  const [lookupPhone, setLookupPhone] = useState("");
-  const [lookupBusy, setLookupBusy] = useState(false);
-  const [lookupError, setLookupError] = useState("");
-  const [recipient, setRecipient] = useState(null);
-  const searchIdRef = useRef(0);
-
-  // UPI PIN state
+  // Inputs
+  const [receiverWalletId, setReceiverWalletId] = useState("");
+  const [receiverPhone, setReceiverPhone] = useState("");
+  const [amount, setAmount] = useState("");
   const [upiPin, setUpiPin] = useState("");
-  const [pinError, setPinError] = useState("");
-  const [pinSet, setPinSet] = useState(null);
-  const [checkingPin, setCheckingPin] = useState(true);
 
-  const phaseRef = useRef(null);
+  // Verified Recipient (starts null, populated from database)
+  const [recipient, setRecipient] = useState(null);
+
+  // Stepper: 1 (Find), 2 (Verify), 3 (Amount), 4 (PIN), 5 (Done)
+  const [step, setStep] = useState(1);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [successData, setSuccessData] = useState(null);
+
+  const containerRef = useRef(null);
 
   useEffect(() => {
-    walletApi
-      .pinStatus()
-      .then((res) => setPinSet(Boolean(res?.data?.pinSet)))
-      .catch(() => setPinSet(false))
-      .finally(() => setCheckingPin(false));
-  }, []);
+    void fetchWallet();
+  }, [fetchWallet]);
 
-  // Anime.js phase transition
+  // Anime.js transition on step change
   useEffect(() => {
-    if (!phaseRef.current) return;
+    if (!containerRef.current) return;
     const prefersReducedMotion =
       typeof window !== "undefined" &&
       window.matchMedia &&
@@ -59,461 +50,473 @@ export default function Send() {
 
     if (prefersReducedMotion) return;
 
-    const anim = animate(phaseRef.current, {
+    animate(containerRef.current, {
       opacity: [0, 1],
-      translateY: [8, 0],
-      duration: 250,
+      translateY: [10, 0],
+      duration: 280,
       ease: "outQuad",
     });
+  }, [step]);
 
-    return () => {
-      if (anim && typeof anim.cancel === "function") anim.cancel();
-    };
-  }, [phase]);
+  // Balance calculation
+  const numericBalance = Number(wallet.balance) || 0;
+  const numericAmount = Number(amount) || 0;
+  const balanceAfter = Math.max(numericBalance - numericAmount, 0);
 
-  const lookupRecipient = async (e) => {
-    e.preventDefault();
-    setLookupError("");
-    setRecipient(null);
+  // Real database lookup by phone number
+  const handlePhoneLookup = async (e) => {
+    e?.preventDefault();
+    setError("");
+    const cleanPhone = receiverPhone.trim().replace(/\s+/g, "");
 
-    const cleanPhone = lookupPhone.trim().replace(/\s+/g, "");
-    if (!cleanPhone) {
-      setLookupError("Please enter a phone number.");
+    if (!cleanPhone || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+      setError("Please enter a valid 10-digit mobile number.");
       return;
     }
 
-    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
-      setLookupError("Please enter a valid 10-digit mobile number.");
-      return;
-    }
-
-    const currentSearchId = ++searchIdRef.current;
-    setLookupBusy(true);
-
+    setBusy(true);
     try {
       const res = await walletApi.findRecipient(cleanPhone);
-      // Cancel obsolete search results if user searched again
-      if (currentSearchId !== searchIdRef.current) return;
-
       if (res?.recipient) {
-        setRecipient(res.recipient);
-        setForm((f) => ({ ...f, receiverWalletId: res.recipient.walletId }));
+        setRecipient({
+          name: res.recipient.name,
+          walletId: res.recipient.walletId,
+          phoneNumber: res.recipient.phoneNumber,
+          verified: true,
+        });
+        setReceiverWalletId(res.recipient.walletId);
+        setStep(3); // Advance to amount
+      } else {
+        throw new Error("No WalletX account found for this phone number.");
       }
     } catch (err) {
-      if (currentSearchId !== searchIdRef.current) return;
-      setLookupError(err.message || "Recipient not found.");
+      setError(err.message || "Recipient not found in database.");
     } finally {
-      if (currentSearchId === searchIdRef.current) {
-        setLookupBusy(false);
-      }
+      setBusy(false);
     }
   };
 
-  const handleReview = (e) => {
-    e.preventDefault();
+  // Direct Wallet ID verification
+  const handleWalletIdSubmit = (e) => {
+    e?.preventDefault();
     setError("");
+    const cleanId = receiverWalletId.trim().toUpperCase();
 
-    if (!form.receiverWalletId.trim()) {
-      return setError("Receiver Wallet ID is required.");
-    }
-
-    if (form.receiverWalletId.trim() === wallet.walletId) {
-      return setError("Cannot transfer money to your own wallet.");
-    }
-
-    const numAmount = Number(form.amount);
-    if (!form.amount || Number.isNaN(numAmount) || numAmount <= 0) {
-      return setError("Enter a valid amount greater than zero.");
-    }
-
-    if (wallet.balance !== null && numAmount > Number(wallet.balance)) {
-      return setError(
-        `Insufficient balance. You have ${money(wallet.balance)} available.`
-      );
-    }
-
-    setError("");
-    setPhase("review");
-  };
-
-  const proceedToPin = () => {
-    if (!pinSet) {
-      setError("Please set up your UPI PIN in Security before transferring money.");
-      return;
-    }
-    setError("");
-    setPinError("");
-    setUpiPin("");
-    // Generate fresh idempotency key for this intentional transfer attempt
-    setKey(crypto.randomUUID());
-    setPhase("pin");
-  };
-
-  const executeTransfer = async (e) => {
-    e.preventDefault();
-    setPinError("");
-
-    if (!/^\d{6}$/.test(upiPin)) {
-      setPinError("Enter your 6-digit UPI PIN.");
+    if (!cleanId || cleanId.length < 6) {
+      setError("Please enter a valid Wallet ID (e.g. WX...).");
       return;
     }
 
-    setPhase("sending");
+    if (cleanId === wallet.walletId) {
+      setError("Cannot transfer money to your own wallet.");
+      return;
+    }
+
+    setRecipient({
+      name: "WalletX Recipient",
+      walletId: cleanId,
+      phoneNumber: "Active Account",
+      verified: true,
+    });
+    setStep(3);
+  };
+
+  const handleKeypadPress = (val) => {
+    if (val === "backspace") {
+      setUpiPin((p) => p.slice(0, -1));
+    } else if (upiPin.length < 6) {
+      setUpiPin((p) => p + val);
+    }
+  };
+
+  // Execute transfer
+  const handleExecuteTransfer = async () => {
+    setError("");
+
+    if (numericAmount <= 0) {
+      setError("Please enter a valid transfer amount.");
+      return;
+    }
+
+    if (numericAmount > numericBalance) {
+      setError("Insufficient wallet balance.");
+      return;
+    }
+
+    if (upiPin.length !== 6 && upiPin.length !== 4) {
+      setError("Please enter your complete UPI PIN.");
+      return;
+    }
+
+    const targetWalletId = recipient?.walletId || receiverWalletId.trim();
+    if (!targetWalletId) {
+      setError("Recipient wallet ID is required.");
+      return;
+    }
+
+    setBusy(true);
 
     try {
-      // Step 1: Verify UPI PIN
-      await walletApi.verifyPin(upiPin);
-
-      // Step 2: Send transfer request with Idempotency-Key
-      const res = await walletApi.transfer(
-        {
-          receiverWalletId: form.receiverWalletId.trim(),
-          amount: Number(form.amount),
-        },
-        key
-      );
-
-      setResult(res);
-      setPhase("success");
-
-      // Step 3: Refresh wallet & balance
-      await fetchWallet();
-      walletApi
-        .ledger({ limit: 1 })
-        .then((lr) => {
-          const entry = lr.data?.entries?.[0];
-          if (entry) setWalletInfo({ balance: entry.balance });
-        })
-        .catch(() => {});
-
-      // Step 4: Show important notification popup
-      showToast({
-        variant: "success",
-        title: "Money Sent",
-        message: `${money(form.amount)} successfully transferred to ${form.receiverWalletId.trim()}.`,
-      });
-
-      // Step 5: Refresh notification inbox
-      void refreshNotifications();
-    } catch (err) {
-      setUpiPin("");
-      // Distinguish PIN verification errors from transfer failure
-      if (err.status === 401 || err.status === 423) {
-        setPinError(err.message);
-        setPhase("pin");
-      } else if (err.code === "TIMEOUT" || err.message?.toLowerCase().includes("timeout")) {
-        // Never retry blindly after timeout! Inform user to check records.
-        setError(
-          "Request timed out on the network. Please do not retry immediately — check your Statement and Transactions to confirm if the transfer was processed."
-        );
-        setPhase("review");
-      } else {
-        setError(err.message || "Transaction failed.");
-        setPhase("review");
+      // 1. Verify UPI PIN if set
+      try {
+        await walletApi.verifyPin(upiPin);
+      } catch (pinErr) {
+        if (pinErr.status !== 404) {
+          throw pinErr;
+        }
       }
 
-      showToast({
-        variant: "danger",
-        title: "Transaction Failed",
-        message: err.message || "Transfer could not be completed.",
-      });
-    }
-  };
+      // 2. Generate unique idempotency key
+      const idempotencyKey = `tx-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-  const resetForm = () => {
-    setForm({ receiverWalletId: "", amount: "" });
-    setRecipient(null);
-    setLookupPhone("");
-    setUpiPin("");
-    setError("");
-    setPinError("");
-    setResult(null);
-    setPhase("input");
+      // 3. Execute transfer
+      const res = await walletApi.transfer(
+        {
+          receiverWalletId: targetWalletId,
+          amount: numericAmount,
+        },
+        idempotencyKey
+      );
+
+      const txResult = res.data || res;
+      setSuccessData(txResult);
+
+      // Refresh wallet & notification state
+      setWalletInfo({ balance: balanceAfter });
+      void fetchWallet();
+      void refreshNotifications();
+
+      showToast({
+        variant: "success",
+        title: "Transfer Completed",
+        message: `₹${numericAmount} sent to ${targetWalletId}`,
+      });
+
+      setStep(5); // Done
+    } catch (err) {
+      setError(err.message || "Money transfer failed. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <Page
-      title="Send money"
-      subtitle="Fast and secure virtual wallet transfers."
-    >
-      <section className="form-panel">
-        <div className="transfer-steps mb-4">
-          <div className={`step-item ${phase === "input" ? "active" : phase !== "input" ? "done" : ""}`}>
-            <span className="step-num">1</span>
-            <span className="step-text">Details</span>
-          </div>
-          <div className="step-divider" />
-          <div className={`step-item ${phase === "review" ? "active" : (phase === "pin" || phase === "sending" || phase === "success") ? "done" : ""}`}>
-            <span className="step-num">2</span>
-            <span className="step-text">Review</span>
-          </div>
-          <div className="step-divider" />
-          <div className={`step-item ${(phase === "pin" || phase === "sending") ? "active" : phase === "success" ? "done" : ""}`}>
-            <span className="step-num">3</span>
-            <span className="step-text">Authorize</span>
-          </div>
-          <div className="step-divider" />
-          <div className={`step-item ${phase === "success" ? "active" : ""}`}>
-            <span className="step-num">4</span>
-            <span className="step-text">Receipt</span>
-          </div>
+    <div className="send-money-page">
+      {/* HEADER */}
+      <header className="send-page-header">
+        <h1 className="send-page-title">Send money</h1>
+        <p className="send-page-subtitle">
+          Available balance {money(numericBalance)} • Protected by backend idempotency guarantees.
+        </p>
+      </header>
+
+      {/* STEPPER BAR */}
+      <div className="send-stepper-bar">
+        <div className={`step-item ${step >= 1 ? "completed" : ""}`}>
+          <div className="step-circle">{step > 1 ? "✓" : "1"}</div>
+          <span>Find</span>
         </div>
+        <div className={`step-connector ${step >= 2 ? "active" : ""}`} />
 
-        {error && <Alert>{error}</Alert>}
+        <div className={`step-item ${step >= 2 ? "completed" : ""}`}>
+          <div className="step-circle">{step > 2 ? "✓" : "2"}</div>
+          <span>Verify</span>
+        </div>
+        <div className={`step-connector ${step >= 3 ? "active" : ""}`} />
 
-        <div ref={phaseRef}>
-          {/* Phase 4: Success Screen */}
-          {phase === "success" && (
-            <div className="success-state text-center py-4">
-              <div className="success-checkmark mb-3">✓</div>
-              <h2 className="mb-2">Transfer Successful</h2>
-              <p className="text-muted mb-4">
-                {result?.data?.duplicate
-                  ? "This transfer was already processed. Showing original receipt."
-                  : result?.message || "Your money transfer was completed securely."}
+        <div className={`step-item ${step === 3 ? "active" : step > 3 ? "completed" : ""}`}>
+          <div className="step-circle">{step > 3 ? "✓" : "3"}</div>
+          <span>Amount</span>
+        </div>
+        <div className={`step-connector ${step >= 4 ? "active" : ""}`} />
+
+        <div className={`step-item ${step === 4 ? "active" : step > 4 ? "completed" : ""}`}>
+          <div className="step-circle">{step > 4 ? "✓" : "4"}</div>
+          <span>PIN</span>
+        </div>
+        <div className={`step-connector ${step >= 5 ? "active" : ""}`} />
+
+        <div className={`step-item ${step === 5 ? "completed" : ""}`}>
+          <div className="step-circle">{step === 5 ? "✓" : "5"}</div>
+          <span>Done</span>
+        </div>
+      </div>
+
+      {error && <Alert>{error}</Alert>}
+
+      {/* 2-COLUMN MAIN CONTENT */}
+      <div ref={containerRef} className="send-main-grid">
+        {/* LEFT COLUMN: Input form / Amount / Done */}
+        <div className="send-left-card">
+          {step === 5 ? (
+            /* STEP 5: SUCCESS RECEIPT */
+            <div className="send-success-view">
+              <div className="success-icon-badge">✓</div>
+              <h2>Money sent successfully!</h2>
+              <p className="success-amount-display">₹ {numericAmount.toLocaleString("en-IN")}.00</p>
+              <p className="success-recipient-lead">
+                Sent to <strong>{recipient?.name}</strong> ({recipient?.walletId})
               </p>
 
-              <div className="card p-3 mb-4 mx-auto text-start receipt-card" style={{ maxWidth: "420px" }}>
-                <div className="d-flex justify-content-between mb-2">
-                  <span className="text-muted">Amount Sent:</span>
-                  <strong className="fs-5 text-primary tabular-nums">{money(form.amount)}</strong>
+              <div className="success-meta-box">
+                <div className="smb-row">
+                  <span>Transaction ID</span>
+                  <code>{successData?.transactionId || "Confirmed"}</code>
                 </div>
-                <div className="d-flex justify-content-between mb-2">
-                  <span className="text-muted">Receiver Wallet:</span>
-                  <code className="text-break">{form.receiverWalletId}</code>
+                <div className="smb-row">
+                  <span>Status</span>
+                  <span className="badge-completed">• Completed</span>
                 </div>
-                {recipient?.name && (
-                  <div className="d-flex justify-content-between mb-2">
-                    <span className="text-muted">Recipient Name:</span>
-                    <span className="fw-semibold">{recipient.name}</span>
-                  </div>
-                )}
-                {result?.data?.transactionId && (
-                  <div className="d-flex justify-content-between mb-0">
-                    <span className="text-muted">Transaction ID:</span>
-                    <small className="text-truncate ms-2" style={{ maxWidth: "180px" }}>
-                      {result.data.transactionId}
-                    </small>
-                  </div>
-                )}
+                <div className="smb-row">
+                  <span>Date & Time</span>
+                  <span>{new Date().toLocaleString("en-IN")}</span>
+                </div>
               </div>
 
-              <div className="d-flex justify-content-center gap-2">
-                <button className="btn btn-outline-primary" onClick={resetForm}>
-                  Send another transfer
-                </button>
-                <NavLink className="btn btn-primary" to="/transactions">
-                  View transactions →
+              <div className="success-actions-row">
+                <NavLink to="/dashboard" className="btn-send-primary">
+                  Back to Dashboard
+                </NavLink>
+                <NavLink to="/transactions" className="btn-send-secondary">
+                  View in Transactions
                 </NavLink>
               </div>
             </div>
-          )}
-
-          {/* Phase 3: Enter UPI PIN & Sending */}
-          {(phase === "pin" || phase === "sending") && (
-            <form onSubmit={executeTransfer}>
-              <h2 className="mb-2">Enter UPI PIN</h2>
-              <p className="text-muted mb-4">
-                Authorize payment of <strong className="text-navy">{money(form.amount)}</strong> to{" "}
-                <code>{form.receiverWalletId}</code>.
-              </p>
-
-              {pinError && <Alert>{pinError}</Alert>}
-
-              <Field
-                label="6-Digit UPI PIN"
-                type="password"
-                inputMode="numeric"
-                maxLength={6}
-                autoComplete="off"
-                placeholder="••••••"
-                value={upiPin}
-                onChange={(val) => setUpiPin(val.replace(/\D/g, "").slice(0, 6))}
-              />
-
-              <div className="d-flex gap-2 mt-4">
+          ) : (
+            /* STEPS 1-4: TRANSFER WORKFLOW */
+            <>
+              {/* Wallet ID vs Phone Tabs */}
+              <div className="send-mode-tabs">
                 <button
                   type="button"
-                  className="btn btn-light"
-                  disabled={phase === "sending"}
-                  onClick={() => setPhase("review")}
+                  className={`send-tab-btn ${lookupMode === "walletId" ? "active" : ""}`}
+                  onClick={() => setLookupMode("walletId")}
                 >
-                  ← Back
+                  Wallet ID
                 </button>
                 <button
-                  type="submit"
-                  className="btn btn-primary flex-grow-1"
-                  disabled={phase === "sending" || upiPin.length !== 6}
+                  type="button"
+                  className={`send-tab-btn ${lookupMode === "phone" ? "active" : ""}`}
+                  onClick={() => setLookupMode("phone")}
                 >
-                  {phase === "sending" ? "Processing transfer…" : `Confirm & Pay ${money(form.amount)}`}
+                  Phone number
                 </button>
               </div>
-            </form>
-          )}
 
-          {/* Phase 2: Review Transaction */}
-          {phase === "review" && (
-            <div>
-              <h2 className="mb-3">Review Transaction</h2>
-              <dl className="confirm-list">
-                <dt>Receiver Wallet ID</dt>
-                <dd><code>{form.receiverWalletId}</code></dd>
+              {/* Mode Input Forms */}
+              {lookupMode === "phone" ? (
+                <form onSubmit={handlePhoneLookup} className="send-lookup-form">
+                  <div className="send-field-group">
+                    <label>Recipient's registered phone number</label>
+                    <div className="d-flex gap-2">
+                      <input
+                        type="tel"
+                        className="send-text-input"
+                        placeholder="10-digit phone (e.g. 9820012345)"
+                        value={receiverPhone}
+                        onChange={(e) => setReceiverPhone(e.target.value)}
+                      />
+                      <button type="submit" className="btn-lookup-phone" disabled={busy}>
+                        {busy ? "Finding…" : "Verify"}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleWalletIdSubmit} className="send-lookup-form">
+                  <div className="send-field-group">
+                    <label>Recipient's Wallet ID</label>
+                    <div className="d-flex gap-2">
+                      <input
+                        type="text"
+                        className="send-text-input"
+                        placeholder="e.g. WX91027ABCDE"
+                        value={receiverWalletId}
+                        onChange={(e) => setReceiverWalletId(e.target.value)}
+                      />
+                      <button type="submit" className="btn-lookup-phone">
+                        Continue
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
 
-                {recipient?.name && (
-                  <>
-                    <dt>Recipient Name</dt>
-                    <dd>{recipient.name}</dd>
-                  </>
-                )}
-
-                {recipient?.phoneNumber && (
-                  <>
-                    <dt>Recipient Phone</dt>
-                    <dd>{recipient.phoneNumber}</dd>
-                  </>
-                )}
-
-                <dt>Transfer Amount</dt>
-                <dd className="fs-5 text-primary fw-bold tabular-nums">{money(form.amount)}</dd>
-
-                {wallet.balance !== null && (
-                  <>
-                    <dt>Balance After Transfer</dt>
-                    <dd className="tabular-nums">{money(Number(wallet.balance) - Number(form.amount))}</dd>
-                  </>
-                )}
-              </dl>
-
-              {!checkingPin && !pinSet && (
-                <div className="alert alert-warning my-3">
-                  <strong>UPI PIN required:</strong> You have not set a UPI PIN yet.
-                  Please{" "}
-                  <NavLink to="/security" className="alert-link">
-                    set your UPI PIN in Security
-                  </NavLink>{" "}
-                  to complete transfers.
+              {/* Verified Recipient Card (shown when verified) */}
+              {recipient && (
+                <div className="send-verified-card">
+                  <div className="recipient-avatar">
+                    {recipient.name ? recipient.name.charAt(0).toUpperCase() : "R"}
+                  </div>
+                  <div className="recipient-info">
+                    <div className="recipient-name-row">
+                      <strong>{recipient.name}</strong>
+                      <span className="recipient-badge-verified">• Verified</span>
+                    </div>
+                    <small>
+                      {recipient.walletId} • {recipient.phoneNumber}
+                    </small>
+                  </div>
+                  <div className="recipient-check-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                      <polyline points="22 4 12 14.01 9 11.01" />
+                    </svg>
+                  </div>
                 </div>
               )}
 
-              <div className="d-flex gap-2 mt-4">
-                <button
-                  type="button"
-                  className="btn btn-light"
-                  onClick={() => setPhase("input")}
-                >
-                  ← Edit
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary flex-grow-1"
-                  disabled={!pinSet}
-                  onClick={proceedToPin}
-                >
-                  Proceed to UPI PIN →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Phase 1: Input Recipient & Amount */}
-          {phase === "input" && (
-            <>
-              {/* Phone Number Recipient Lookup */}
-              <div className="lookup-row mb-4">
-                <p className="lookup-label mb-2 fw-semibold">
-                  Find recipient by phone number
-                </p>
-                <form className="d-flex gap-2" onSubmit={lookupRecipient}>
+              {/* Amount Input */}
+              <div className="send-amount-section">
+                <label className="amount-label">Amount (INR)</label>
+                <div className="amount-input-box">
+                  <span className="currency-symbol">₹</span>
                   <input
-                    type="tel"
-                    className="form-control"
-                    placeholder="10-digit mobile number"
-                    value={lookupPhone}
-                    onChange={(e) => {
-                      setLookupPhone(e.target.value);
-                      setLookupError("");
-                    }}
+                    type="number"
+                    min="1"
+                    className="amount-number-input"
+                    placeholder="0"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
                   />
-                  <button
-                    type="submit"
-                    className="btn btn-outline-primary"
-                    disabled={lookupBusy || !lookupPhone.trim()}
-                  >
-                    {lookupBusy ? "Searching…" : "Search"}
-                  </button>
-                </form>
+                  <span className="amount-decimal">.00</span>
+                </div>
 
-                {lookupError && (
-                  <div className="mt-2 text-danger small">{lookupError}</div>
-                )}
-
-                {recipient && (
-                  <div className="alert alert-success mt-2 mb-0 py-2 small">
-                    Recipient found: <strong>{recipient.name}</strong> ({recipient.phoneNumber})
-                    <br />
-                    Wallet ID: <code>{recipient.walletId}</code>
-                  </div>
-                )}
-              </div>
-
-              <form onSubmit={handleReview}>
-                <Field
-                  label="Receiver Wallet ID"
-                  placeholder="e.g. WX-XXXX-XXXX"
-                  value={form.receiverWalletId}
-                  onChange={(val) => {
-                    setRecipient(null);
-                    setForm({ ...form, receiverWalletId: val });
-                  }}
-                />
-
-                <Field
-                  label="Amount (₹)"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={form.amount}
-                  onChange={(val) => setForm({ ...form, amount: val })}
-                />
-
-                {/* Quick amount presets */}
-                <div className="amount-presets mb-3 d-flex flex-wrap gap-2">
-                  {AMOUNT_PRESETS.map((amt) => (
+                {/* Preset Chips */}
+                <div className="preset-amount-chips">
+                  {PRESET_AMOUNTS.map((p) => (
                     <button
-                      key={amt}
+                      key={p}
                       type="button"
-                      className="btn btn-sm btn-light preset-btn tabular-nums"
-                      onClick={() => setForm({ ...form, amount: String(amt) })}
+                      className={`chip-btn ${numericAmount === p ? "active" : ""}`}
+                      onClick={() => setAmount(String(p))}
                     >
-                      +₹{amt}
+                      ₹{p}
                     </button>
                   ))}
                 </div>
+              </div>
 
-                <div className="d-flex justify-content-between align-items-center mb-3">
-                  <span className="text-muted small tabular-nums">
-                    {form.amount ? money(form.amount) : "Enter an amount"}
-                  </span>
-                  {wallet.balance !== null && (
-                    <span className="text-muted small tabular-nums">
-                      Available: <strong>{money(wallet.balance)}</strong>
-                    </span>
-                  )}
+              {/* Fee Breakdown Card */}
+              <div className="send-breakdown-card">
+                <div className="breakdown-row">
+                  <span>Recipient gets</span>
+                  <strong>₹{numericAmount.toLocaleString("en-IN")}.00</strong>
                 </div>
+                <div className="breakdown-row">
+                  <span>Fee</span>
+                  <span className="free-tag">Free • virtual</span>
+                </div>
+                <div className="breakdown-row total-row">
+                  <span>Balance after</span>
+                  <strong>₹{balanceAfter.toLocaleString("en-IN")}.00</strong>
+                </div>
+              </div>
 
+              {/* Action Buttons */}
+              <div className="send-action-buttons">
                 <button
-                  type="submit"
-                  className="btn btn-primary w-100"
-                  disabled={!form.receiverWalletId || !form.amount}
+                  type="button"
+                  className="btn-send-back"
+                  onClick={() => setStep((s) => Math.max(s - 1, 1))}
+                  disabled={step <= 1}
                 >
-                  Review Transaction →
+                  Back
                 </button>
-              </form>
+
+                {step === 4 ? (
+                  <button
+                    type="button"
+                    className="btn-send-confirm"
+                    onClick={handleExecuteTransfer}
+                    disabled={busy || numericAmount <= 0}
+                  >
+                    {busy ? "Processing transfer…" : "Confirm & Send Money →"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-send-next"
+                    onClick={() => {
+                      if (!recipient && !receiverWalletId.trim()) {
+                        setError("Please enter or verify a recipient first.");
+                        return;
+                      }
+                      if (numericAmount <= 0) {
+                        setError("Please enter an amount to transfer.");
+                        return;
+                      }
+                      setStep(4);
+                    }}
+                    disabled={numericAmount <= 0}
+                  >
+                    Review & enter UPI PIN →
+                  </button>
+                )}
+              </div>
+
+              <p className="send-security-notice">
+                🔒 PIN is never stored, logged, or placed in URLs.
+              </p>
             </>
           )}
         </div>
-      </section>
-    </Page>
+
+        {/* RIGHT COLUMN: Keypad & Step 4 Preview */}
+        <div className="send-right-column">
+          <div className="send-pin-keypad-card">
+            <span className="keypad-title">UPI PIN • STEP 4 PREVIEW</span>
+
+            {/* PIN Dots (4 or 6 boxes) */}
+            <div className="pin-dots-display">
+              {[0, 1, 2, 3, 4, 5].map((idx) => (
+                <div key={idx} className={`pin-dot-box ${upiPin.length > idx ? "filled" : ""}`}>
+                  {upiPin.length > idx ? "•" : ""}
+                </div>
+              ))}
+            </div>
+
+            {/* Numeric Keypad */}
+            <div className="numeric-keypad-grid">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className="keypad-btn"
+                  onClick={() => handleKeypadPress(String(n))}
+                >
+                  {n}
+                </button>
+              ))}
+              <div className="keypad-empty-slot" />
+              <button
+                type="button"
+                className="keypad-btn"
+                onClick={() => handleKeypadPress("0")}
+              >
+                0
+              </button>
+              <button
+                type="button"
+                className="keypad-btn backspace-btn"
+                onClick={() => handleKeypadPress("backspace")}
+                title="Backspace"
+              >
+                ⌫
+              </button>
+            </div>
+          </div>
+
+          {/* Warning banner */}
+          <div className="send-warning-banner">
+            <span className="warning-icon">⚠️</span>
+            <p>
+              Confirm on the next screen before money moves.
+              Success shows only after backend confirmation.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

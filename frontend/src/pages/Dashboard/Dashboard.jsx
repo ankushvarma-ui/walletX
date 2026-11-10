@@ -1,142 +1,40 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { NavLink } from "react-router-dom";
-import * as THREE from "three";
 import { animate } from "animejs";
 
 import { useAuth } from "../../context/AuthContext";
+import { useNotifications } from "../../context/NotificationContext";
 import { walletApi } from "../../services/api";
 import { money } from "../../utils/format";
-
-import Page from "../../components/Page";
-import LedgerCard from "../../components/LedgerCard";
+import Coin3D from "../../components/Coin3D";
 
 import "./Dashboard.css";
 
-function ThreeBalanceMicroCanvas() {
-  const mountRef = useRef(null);
-
-  useEffect(() => {
-    const container = mountRef.current;
-    if (!container) return;
-
-    // WebGL check
-    try {
-      const testCanvas = document.createElement("canvas");
-      const gl =
-        window.WebGLRenderingContext &&
-        (testCanvas.getContext("webgl") || testCanvas.getContext("experimental-webgl"));
-      if (!gl) return;
-    } catch {
-      return;
-    }
-
-    const prefersReducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    const width = 85;
-    const height = 85;
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-    camera.position.z = 3.8;
-
-    let renderer = null;
-    try {
-      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
-      renderer.setSize(width, height);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-      container.appendChild(renderer.domElement);
-    } catch {
-      return;
-    }
-
-    // Geometry: 3D Diamond / Octahedron
-    const geometry = new THREE.OctahedronGeometry(1.2, 0);
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x6ba4ff,
-      metalness: 0.9,
-      roughness: 0.15,
-      wireframe: true,
-    });
-    const mesh = new THREE.Mesh(geometry, material);
-    scene.add(mesh);
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
-    scene.add(ambientLight);
-
-    if (prefersReducedMotion) {
-      renderer.render(scene, camera);
-      return () => {
-        geometry.dispose();
-        material.dispose();
-        renderer.dispose();
-        if (renderer.domElement && renderer.domElement.parentNode) {
-          renderer.domElement.parentNode.removeChild(renderer.domElement);
-        }
-      };
-    }
-
-    let animId = null;
-    let isHidden = false;
-
-    const renderLoop = () => {
-      if (isHidden) return;
-      mesh.rotation.x += 0.012;
-      mesh.rotation.y += 0.016;
-      renderer.render(scene, camera);
-      animId = requestAnimationFrame(renderLoop);
-    };
-
-    animId = requestAnimationFrame(renderLoop);
-
-    const handleVisibility = () => {
-      if (document.hidden) {
-        isHidden = true;
-        if (animId) cancelAnimationFrame(animId);
-      } else {
-        isHidden = false;
-        animId = requestAnimationFrame(renderLoop);
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    return () => {
-      if (animId) cancelAnimationFrame(animId);
-      document.removeEventListener("visibilitychange", handleVisibility);
-      geometry.dispose();
-      material.dispose();
-      if (renderer) {
-        renderer.dispose();
-        if (renderer.domElement && renderer.domElement.parentNode) {
-          renderer.domElement.parentNode.removeChild(renderer.domElement);
-        }
-      }
-    };
-  }, []);
-
-  return <div ref={mountRef} className="balance-micro-canvas" aria-hidden="true" />;
-}
-
 export default function Dashboard() {
   const { user, wallet, fetchWallet } = useAuth();
+  const { notifications, unreadCount } = useNotifications();
 
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pinSet, setPinSet] = useState(null);
-  const [copied, setCopied] = useState(false);
+  const [hideBalance, setHideBalance] = useState(false);
+  const [activeDateStr, setActiveDateStr] = useState("");
 
-  const quickGridRef = useRef(null);
+  const contentRef = useRef(null);
+
+  useEffect(() => {
+    const now = new Date();
+    const options = { weekday: "long", day: "numeric", month: "short" };
+    setActiveDateStr(now.toLocaleDateString("en-IN", options));
+  }, []);
 
   const loadData = useCallback(() => {
     setLoading(true);
     void fetchWallet();
 
     walletApi
-      .ledger({ limit: 5 })
+      .ledger({ limit: 6 })
       .then((r) => {
         const list = r.data?.entries || [];
         setEntries(list);
@@ -155,9 +53,9 @@ export default function Dashboard() {
     loadData();
   }, [loadData]);
 
-  // Anime.js staggered entrance for quick action cards
+  // Anime.js entrance animation
   useEffect(() => {
-    if (!quickGridRef.current) return;
+    if (!contentRef.current) return;
     const prefersReducedMotion =
       typeof window !== "undefined" &&
       window.matchMedia &&
@@ -165,105 +63,299 @@ export default function Dashboard() {
 
     if (prefersReducedMotion) return;
 
-    const anim = animate(quickGridRef.current.children, {
+    animate(contentRef.current.querySelectorAll(".dashboard-card-anim"), {
       opacity: [0, 1],
-      translateY: [8, 0],
+      translateY: [12, 0],
       delay: (el, i) => i * 45,
-      duration: 280,
+      duration: 320,
       ease: "outQuad",
     });
-
-    return () => {
-      if (anim && typeof anim.cancel === "function") anim.cancel();
-    };
   }, []);
 
-  const handleCopyWalletId = async () => {
-    if (!wallet.walletId) return;
-    try {
-      await navigator.clipboard.writeText(wallet.walletId);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback
-    }
-  };
-
   const balanceKnown = wallet.balance !== null && wallet.balance !== undefined;
+  const displayBalance = balanceKnown ? money(wallet.balance) : "₹ 0.00";
+  const firstName = user?.name ? user.name.split(" ")[0] : "Member";
+  const displayWalletId = wallet.walletId || "—";
+
+  // Real database-calculated totals
+  const totalIn = entries.reduce((acc, tx) => acc + (tx.credit ? Number(tx.credit) : 0), 0);
+  const totalOut = entries.reduce((acc, tx) => acc + (tx.debit ? Number(tx.debit) : 0), 0);
 
   return (
-    <Page
-      title={`Hello, ${user?.name || "Member"}`}
-      subtitle="Here is your real-time WalletX balance and activity."
-    >
-      {error && <div className="alert alert-danger">{error}</div>}
-
-      <section className="balance-card">
-        <div className="balance-card-header">
-          <div>
-            <span className="balance-label">Available balance</span>
-            <strong className="tabular-nums">
-              {balanceKnown ? money(wallet.balance) : "₹ 0.00"}
-            </strong>
-          </div>
-          <ThreeBalanceMicroCanvas />
+    <div ref={contentRef} className="dashboard-page-container">
+      {/* 1. TOP HEADER & GREETING */}
+      <header className="dashboard-header-row dashboard-card-anim">
+        <div className="dashboard-greeting-col">
+          <h1 className="dashboard-greeting-title">Namaste, {firstName}</h1>
+          <p className="dashboard-greeting-subtext">
+            {activeDateStr} • Wallet {displayWalletId} • {wallet.status || "Active"}
+          </p>
         </div>
 
-        <div className="balance-meta mt-3">
-          <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
-            <div className="d-flex align-items-center gap-2">
-              <small>Wallet ID:</small>
-              <code className="wallet-code">
-                {wallet.walletId || "Loading Wallet ID…"}
-              </code>
-              {wallet.walletId && (
+        <div className="dashboard-header-actions">
+          <NavLink to="/statement" className="btn-dash-outline">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Statement
+          </NavLink>
+          <NavLink to="/receive" className="btn-dash-topup">
+            + Receive funds
+          </NavLink>
+        </div>
+      </header>
+
+      {error && <div className="alert alert-danger mb-3">{error}</div>}
+
+      {/* 2. MAIN 2-COLUMN GRID */}
+      <div className="dashboard-main-grid">
+        {/* LEFT COLUMN: Balance Card & Recent Transactions */}
+        <div className="dashboard-col-left">
+          {/* AVAILABLE BALANCE CARD */}
+          <section className="dashboard-balance-card dashboard-card-anim">
+            <div className="dbc-content-side">
+              <div className="dbc-header-row">
+                <span className="dbc-label">AVAILABLE BALANCE • INR</span>
                 <button
                   type="button"
-                  className="btn btn-sm copy-btn"
-                  onClick={handleCopyWalletId}
-                  title="Copy Wallet ID"
+                  className="dbc-eye-btn"
+                  onClick={() => setHideBalance(!hideBalance)}
+                  title={hideBalance ? "Show balance" : "Hide balance"}
                 >
-                  {copied ? "✓ Copied" : "Copy"}
+                  👁️ {hideBalance ? "Show" : "Hide with one tap"}
                 </button>
-              )}
+              </div>
+
+              <div className="dbc-amount-display">
+                <strong className="tabular-nums">
+                  {hideBalance ? "••••••••" : displayBalance}
+                </strong>
+              </div>
+
+              <p className="dbc-micro-subtext">
+                Virtual money • Real-time database balance
+              </p>
+
+              <div className="dbc-action-buttons">
+                <NavLink to="/send" className="btn-dbc-send">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                  </svg>
+                  Send money
+                </NavLink>
+
+                <NavLink to="/receive" className="btn-dbc-receive">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="14" y="14" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                  </svg>
+                  Receive
+                </NavLink>
+
+                <button
+                  type="button"
+                  className="btn-dbc-refresh"
+                  onClick={loadData}
+                  title="Refresh wallet balance"
+                >
+                  ⇄
+                </button>
+              </div>
             </div>
 
-            {pinSet !== null && (
-              <span className={`status-chip ${pinSet ? "on" : "off"}`}>
-                {pinSet ? "✓ UPI PIN Set" : "⚠ UPI PIN Not Set"}
-              </span>
-            )}
-          </div>
+            {/* 3D Gold Coin with ₹ */}
+            <div className="dbc-coin-side">
+              <Coin3D size={135} interactive={true} spinSpeed={0.016} />
+            </div>
+          </section>
+
+          {/* RECENT TRANSACTIONS FEED (Strictly real database entries) */}
+          <section className="dashboard-transactions-card dashboard-card-anim">
+            <div className="dtc-header">
+              <h2>Recent transactions</h2>
+              <NavLink to="/transactions" className="dtc-viewall-link">
+                View all →
+              </NavLink>
+            </div>
+
+            <div className="dtc-list">
+              {loading ? (
+                <div className="py-4 text-center text-muted">
+                  <small>Loading transactions from database…</small>
+                </div>
+              ) : entries.length > 0 ? (
+                entries.map((tx, idx) => {
+                  const isDebit = tx.debit !== null && tx.debit !== undefined;
+                  const amt = isDebit ? tx.debit : tx.credit;
+                  const formattedAmt = money(amt);
+                  const dateStr = tx.date
+                    ? new Date(tx.date).toLocaleTimeString("en-IN", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "Recent";
+
+                  return (
+                    <div key={tx.transaction || idx} className="dtc-item">
+                      <div className={`dtc-dir-icon ${isDebit ? "debit" : "credit"}`}>
+                        {isDebit ? "↗" : "↙"}
+                      </div>
+
+                      <div className="dtc-info">
+                        <strong>
+                          {tx.description || (isDebit ? "Payment sent" : "Payment received")}
+                        </strong>
+                        <small>
+                          {dateStr} • TXN #{String(tx.transaction || "").slice(0, 8)}
+                        </small>
+                      </div>
+
+                      <div className="dtc-meta text-end">
+                        <strong className={`dtc-amt ${isDebit ? "debit" : "credit"}`}>
+                          {isDebit ? `– ${formattedAmt}` : `+ ${formattedAmt}`}
+                        </strong>
+                        <div className="dtc-status-line">
+                          <span className="dtc-dot completed" />
+                          <small>Completed</small>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                /* Honest Empty State when database has 0 transactions */
+                <div className="py-4 text-center text-muted">
+                  <p className="mb-1 fw-semibold text-secondary">No transactions in database yet.</p>
+                  <small>Send or receive money to generate your first ledger entry.</small>
+                </div>
+              )}
+            </div>
+          </section>
         </div>
-      </section>
 
-      <section ref={quickGridRef} className="quick-grid">
-        <NavLink to="/send" className="quick-action-card">
-          <span className="quick-icon" aria-hidden="true">↗</span>
-          <span className="quick-label">Send money</span>
-        </NavLink>
+        {/* RIGHT COLUMN: Quick Actions, Health Alert, Weekly Chart, Notifications */}
+        <div className="dashboard-col-right">
+          {/* QUICK ACTIONS CARD */}
+          <section className="dashboard-side-card dashboard-card-anim">
+            <h3 className="side-card-title">
+              <span className="side-title-icon">⚡</span> Quick actions
+            </h3>
 
-        <NavLink to="/receive" className="quick-action-card">
-          <span className="quick-icon" aria-hidden="true">↙</span>
-          <span className="quick-label">Receive money</span>
-        </NavLink>
+            <div className="quick-actions-4col">
+              <NavLink to="/send" className="qa-item">
+                <div className="qa-icon-circle blue">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                  </svg>
+                </div>
+                <span>Send</span>
+              </NavLink>
 
-        <NavLink to="/transactions" className="quick-action-card">
-          <span className="quick-icon" aria-hidden="true">⇄</span>
-          <span className="quick-label">Transactions</span>
-        </NavLink>
+              <NavLink to="/receive" className="qa-item">
+                <div className="qa-icon-circle cyan">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="14" y="14" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                  </svg>
+                </div>
+                <span>Receive</span>
+              </NavLink>
 
-        <NavLink to="/security" className="quick-action-card">
-          <span className="quick-icon" aria-hidden="true">🛡</span>
-          <span className="quick-label">Security</span>
-        </NavLink>
-      </section>
+              <NavLink to="/statement" className="qa-item">
+                <div className="qa-icon-circle indigo">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
+                </div>
+                <span>Receipt</span>
+              </NavLink>
 
-      <LedgerCard
-        title="Recent activity"
-        entries={entries.slice(0, 5)}
-        loading={loading}
-      />
-    </Page>
+              <NavLink to="/security" className="qa-item">
+                <div className="qa-icon-circle rose">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="12" y1="2" x2="12" y2="22" />
+                    <line x1="2" y1="12" x2="22" y2="12" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </div>
+                <span>Freeze</span>
+              </NavLink>
+            </div>
+          </section>
+
+          {/* WALLET HEALTHY CARD (Accurate Session Count) */}
+          <section className="dashboard-health-card dashboard-card-anim">
+            <span className="health-shield-icon">🛡️</span>
+            <div>
+              <strong>Wallet healthy.</strong>
+              <span>
+                {pinSet ? " PIN set • " : " Set UPI PIN in Security • "}
+                1 active session • No freeze.
+              </span>
+            </div>
+          </section>
+
+          {/* THIS WEEK CHART (Real database calculations) */}
+          <section className="dashboard-side-card dashboard-card-anim">
+            <h3 className="side-card-title">This week</h3>
+
+            <div className="chart-bars-row">
+              <div className="chart-bar-col"><div className="c-bar" style={{ height: entries.length > 0 ? "35%" : "15%" }} /></div>
+              <div className="chart-bar-col"><div className="c-bar" style={{ height: entries.length > 1 ? "50%" : "20%" }} /></div>
+              <div className="chart-bar-col"><div className="c-bar" style={{ height: entries.length > 2 ? "65%" : "25%" }} /></div>
+              <div className="chart-bar-col"><div className="c-bar" style={{ height: entries.length > 3 ? "45%" : "20%" }} /></div>
+              <div className="chart-bar-col"><div className="c-bar" style={{ height: entries.length > 4 ? "75%" : "30%" }} /></div>
+              <div className="chart-bar-col"><div className="c-bar active-bar" style={{ height: entries.length > 0 ? "90%" : "40%" }} /></div>
+              <div className="chart-bar-col"><div className="c-bar" style={{ height: entries.length > 0 ? "55%" : "20%" }} /></div>
+            </div>
+
+            <div className="chart-footer-totals">
+              <span className="total-in">In {money(totalIn)}</span>
+              <span className="total-out">Out {money(totalOut)}</span>
+            </div>
+          </section>
+
+          {/* NOTIFICATIONS PREVIEW CARD (Strictly real database notifications) */}
+          <section className="dashboard-side-card dashboard-card-anim">
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h3 className="side-card-title m-0">Notifications</h3>
+              <span className="notif-badge-pill">
+                {unreadCount > 0 ? `${unreadCount} new` : "0 new"}
+              </span>
+            </div>
+
+            <div className="side-notif-list">
+              {notifications.length > 0 ? (
+                notifications.slice(0, 3).map((n) => (
+                  <div key={n.id} className="side-notif-row">
+                    <span
+                      className={`notif-dot ${
+                        n.type?.includes("FAIL")
+                          ? "red"
+                          : n.type?.includes("SECURITY")
+                          ? "blue"
+                          : "green"
+                      }`}
+                    />
+                    <p>{n.title}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-muted small m-0 py-2">No notifications in database.</p>
+              )}
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
   );
 }

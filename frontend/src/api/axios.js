@@ -50,16 +50,18 @@ axiosInstance.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
+    const is401 = error.response?.status === 401;
 
-    // Attempt silent token refresh on any 401 from a protected endpoint.
-    // This covers both "Access token expired" (mid-session) and
-    // "Authentication required" / "Invalid access token" (startup, cookie missing
-    // or access-token cookie cleared while refresh cookie is still valid).
-    const is401 =
-      error.response?.status === 401;
+    // Check if a session was previously established in this browser
+    const hasActiveSession =
+      typeof window !== "undefined" &&
+      (window.localStorage.getItem("walletx_has_session") === "true" ||
+        window.sessionStorage.getItem("walletx_session") === "true");
 
+    // Attempt silent token refresh ONLY if a session exists and token expired
     if (
       is401 &&
+      hasActiveSession &&
       originalRequest &&
       !originalRequest._retry &&
       !isAuthRoute(originalRequest.url)
@@ -82,7 +84,11 @@ axiosInstance.interceptors.response.use(
         } catch (refreshErr) {
           isRefreshing = false;
           onRefreshFailed(refreshErr);
-          // If refresh fails, fall through to user-friendly error
+          // If refresh token is expired or missing, clear session indicators
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem("walletx_has_session");
+            window.sessionStorage.removeItem("walletx_session");
+          }
         }
       } else {
         // Wait for the ongoing refresh to finish

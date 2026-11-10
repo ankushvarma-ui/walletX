@@ -1,43 +1,236 @@
-.receive-card {
-  max-width: 540px;
-  text-align: center;
-  display: grid;
-  justify-items: center;
-  gap: 1.15rem;
-  padding: 2.25rem 2rem;
+/* Receive Money Styling (Matches ReceiveMoney.png) */
+
+.receive-money-page {
+  padding: 1.5rem 2rem 3rem;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-.wallet-mark {
-  width: 68px;
-  height: 68px;
-  border-radius: 20px;
-  background: var(--blue-subtle);
-  display: grid;
-  place-items: center;
-  font-size: 1.75rem;
+.receive-page-header {
+  margin-bottom: 2rem;
+}
+
+.receive-page-title {
+  font-size: 1.85rem;
   font-weight: 800;
-  color: var(--blue);
-  box-shadow: 0 4px 14px -2px rgba(36, 107, 254, 0.2);
+  color: #0f172a;
+  letter-spacing: -0.03em;
+  margin: 0 0 0.25rem;
 }
 
-.receive-label {
+.receive-page-subtitle {
   font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--navy);
+  color: #64748b;
   margin: 0;
 }
 
-.wallet-chip-container {
-  max-width: 100%;
+/* ================= 2-COLUMN GRID ================= */
+.receive-main-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 2rem;
+  align-items: start;
 }
 
-.receive-card code {
-  background: #f1f5fa;
-  border: 1px solid var(--line);
-  padding: 0.75rem 1.25rem;
-  border-radius: 10px;
-  color: var(--navy);
-  font-weight: 650;
-  overflow-wrap: anywhere;
+/* ================= LEFT: YOUR WALLET CARD ================= */
+.receive-wallet-card {
+  background: radial-gradient(circle at 80% 20%, #152d52 0%, #0b1a30 75%, #050d1a 100%);
+  color: #ffffff;
+  border-radius: 16px;
+  padding: 2.25rem;
+  box-shadow: 0 15px 35px rgba(11, 26, 48, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rwc-eyebrow {
   display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  margin-bottom: 1.5rem;
+}
+
+.rwc-user-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.rwc-avatar {
+  width: 48px;
+  height: 48px;
+  background: #1e3a8a;
+  color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 800;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.rwc-user-meta strong {
+  display: block;
+  font-size: 1.15rem;
+  color: #ffffff;
+}
+
+.rwc-user-since {
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+
+/* Data box */
+.rwc-data-box {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.rwc-data-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  margin-bottom: 0.25rem;
+}
+
+.rwc-data-val {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+}
+
+.btn-rwc-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  padding: 0.45rem 0.95rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-rwc-copy:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.btn-rwc-share {
+  width: 100%;
+  height: 48px;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  transition: background-color 0.15s ease;
+}
+
+.btn-rwc-share:hover {
+  background: #1d4ed8;
+}
+
+/* ================= RIGHT COLUMN ================= */
+.receive-guide-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.guide-card-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 1.5rem;
+}
+
+.guide-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.guide-step-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.guide-step-num {
+  width: 28px;
+  height: 28px;
+  background: #eff6ff;
+  color: #2563eb;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.guide-step-row p {
+  font-size: 0.9rem;
+  color: #334155;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.receive-incoming-banner {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.incoming-bell-icon {
+  width: 36px;
+  height: 36px;
+  background: #dcfce7;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.receive-incoming-banner p {
+  font-size: 0.88rem;
+  color: #065f46;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .receive-main-grid {
+    grid-template-columns: 1fr;
+  }
 }

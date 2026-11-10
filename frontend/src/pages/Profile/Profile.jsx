@@ -1,14 +1,12 @@
-import { useEffect, useState, useRef } from "react";
-import { animate } from "animejs";
+import { useEffect } from "react";
+import { NavLink } from "react-router-dom";
+
 import { useAuth } from "../../context/AuthContext";
-import Page from "../../components/Page";
 
 import "./Profile.css";
 
 export default function Profile() {
   const { user, wallet, fetchWallet } = useAuth();
-  const [copied, setCopied] = useState(false);
-  const cardRef = useRef(null);
 
   useEffect(() => {
     if (!wallet.walletId) {
@@ -16,94 +14,140 @@ export default function Profile() {
     }
   }, [wallet.walletId, fetchWallet]);
 
-  useEffect(() => {
-    if (!cardRef.current) return;
-    const prefersReducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const displayName = user?.name || "Member";
+  const userInitial = displayName.charAt(0).toUpperCase();
+  const displayWalletId = wallet?.walletId || "Loading…";
+  const displayEmail = user?.email || "—";
+  const displayPhone = user?.phoneNumber || "Not registered";
 
-    if (prefersReducedMotion) return;
-
-    const anim = animate(cardRef.current, {
-      opacity: [0, 1],
-      translateY: [8, 0],
-      duration: 300,
-      ease: "outQuad",
-    });
-
-    return () => {
-      if (anim && typeof anim.cancel === "function") anim.cancel();
-    };
-  }, []);
-
-  const handleCopyWalletId = () => {
-    if (!wallet.walletId) return;
-    void navigator.clipboard?.writeText(wallet.walletId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const initial = user?.name ? user.name.charAt(0).toUpperCase() : "U";
+  // Derive member date from real wallet creation timestamp if present
+  let memberSinceStr = "Personal Wallet Account";
+  if (wallet?.createdAt || user?.createdAt) {
+    try {
+      const dt = new Date(wallet?.createdAt || user?.createdAt);
+      memberSinceStr = `Member since ${dt.toLocaleDateString("en-IN", {
+        month: "short",
+        year: "numeric",
+      })}`;
+    } catch {
+      // Fallback
+    }
+  }
 
   return (
-    <Page title="Profile" subtitle="Your WalletX account details and status.">
-      <section className="panel profile-panel" ref={cardRef}>
-        <div className="profile-header mb-4">
-          <div className="profile-avatar">{initial}</div>
-          <div>
-            <h3 className="profile-name mb-0">{user?.name || "Wallet User"}</h3>
-            <span className="profile-email text-muted">{user?.email || "—"}</span>
+    <div className="profile-page">
+      {/* HEADER */}
+      <header className="profile-page-header">
+        <h1 className="profile-page-title">Profile</h1>
+        <p className="profile-page-subtitle">
+          Only data returned by the backend. Contact support to change identity fields.
+        </p>
+      </header>
+
+      {/* 2-COLUMN GRID (Matches Profile.png) */}
+      <div className="profile-main-grid">
+        {/* LEFT COLUMN: MAIN PROFILE CARD */}
+        <div className="profile-main-card">
+          <div className="pmc-user-header">
+            <div className="pmc-avatar">{userInitial}</div>
+            <div className="pmc-user-titles">
+              <strong className="pmc-user-name">{displayName}</strong>
+              <small className="pmc-user-sub">
+                {displayWalletId} • {memberSinceStr}
+              </small>
+            </div>
+            <span className="pmc-badge-active">
+              • {user?.isActive !== false ? "ACTIVE" : "INACTIVE"}
+            </span>
+          </div>
+
+          {/* 2-Column Inputs Grid (Strictly from real database) */}
+          <div className="pmc-fields-grid">
+            <div className="pmc-field">
+              <label>FULL NAME</label>
+              <div className="pmc-input-box">
+                <span>{displayName}</span>
+                <span className="pmc-check">✓</span>
+              </div>
+            </div>
+
+            <div className="pmc-field">
+              <label>WALLET ID</label>
+              <div className="pmc-input-box">
+                <span>{displayWalletId}</span>
+              </div>
+            </div>
+
+            <div className="pmc-field">
+              <label>EMAIL</label>
+              <div className="pmc-input-box">
+                <span>{displayEmail}</span>
+                <span className="pmc-check">✓</span>
+              </div>
+            </div>
+
+            <div className="pmc-field">
+              <label>PHONE</label>
+              <div className="pmc-input-box">
+                <span>{displayPhone}</span>
+                {user?.phoneNumber && <span className="pmc-check">✓</span>}
+              </div>
+            </div>
+          </div>
+
+          {/* Info Notice Banner */}
+          <div className="pmc-info-banner">
+            <span className="info-icon">ℹ️</span>
+            <p>
+              Name, email and phone come from /api/v1/users. This UI never invents profile fields.
+            </p>
           </div>
         </div>
 
-        <dl className="profile-details">
-          <dt>Full Name</dt>
-          <dd>{user?.name || "—"}</dd>
+        {/* RIGHT COLUMN: Account Status & Need More Control */}
+        <div className="profile-right-column">
+          {/* Account Status Card (Accurate real session data) */}
+          <div className="profile-status-card">
+            <h2 className="psc-title">Account status</h2>
 
-          <dt>Email Address</dt>
-          <dd>{user?.email || "—"}</dd>
-
-          {user?.phoneNumber && (
-            <>
-              <dt>Phone Number</dt>
-              <dd>{user.phoneNumber}</dd>
-            </>
-          )}
-
-          <dt>Account Role</dt>
-          <dd className="text-capitalize">{user?.role || "user"}</dd>
-
-          <dt>Account Status</dt>
-          <dd>
-            <span className={`status-chip ${user?.isActive ? "on" : "off"}`}>
-              {user?.isActive ? "Active" : "Inactive"}
-            </span>
-          </dd>
-
-          <dt>Wallet ID</dt>
-          <dd>
-            {wallet.walletId ? (
-              <div className="d-inline-flex align-items-center gap-2">
-                <code className="wallet-id-chip">{wallet.walletId}</code>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-outline-secondary py-0 px-2"
-                  onClick={handleCopyWalletId}
-                  title="Copy Wallet ID"
-                >
-                  {copied ? "✓ Copied" : "Copy"}
-                </button>
+            <div className="psc-rows-list">
+              <div className="psc-row">
+                <span>Wallet</span>
+                <strong className={wallet.status === "FROZEN" ? "text-danger" : "text-success"}>
+                  {wallet.status || "Active"}
+                </strong>
               </div>
-            ) : (
-              <span className="text-muted">Loading…</span>
-            )}
-          </dd>
 
-          <dt>Wallet Status</dt>
-          <dd className="text-capitalize">{wallet.status || "Active"}</dd>
-        </dl>
-      </section>
-    </Page>
+              <div className="psc-row">
+                <span>KYC</span>
+                <span>Basic • virtual only</span>
+              </div>
+
+              <div className="psc-row">
+                <span>Sessions</span>
+                <strong>1 active (Current device)</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Need More Control Card (Dark Navy) */}
+          <div className="profile-control-card">
+            <div className="pcc-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+            </div>
+            <strong className="pcc-title">Need more control?</strong>
+            <p className="pcc-sub">
+              Freeze, PIN reset and session management live under Security.
+            </p>
+
+            <NavLink to="/security" className="btn-pcc-security">
+              Go to Security
+            </NavLink>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

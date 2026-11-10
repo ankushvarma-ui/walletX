@@ -33,7 +33,27 @@ function isSessionGone(err) {
   return err.status === 401 || err.status === 403;
 }
 
-const EMPTY_WALLET = { id: null, walletId: null, balance: null, currency: "INR", status: null };
+const EMPTY_WALLET = { id: null, walletId: null, balance: null, currency: "INR", status: null, createdAt: null };
+
+/**
+ * Normalize a raw backend user object to consistent camelCase.
+ * The backend returns different shapes depending on whether the data
+ * comes from the Redis cache (camelCase isActive, no phoneNumber) or
+ * directly from PostgreSQL (snake_case: phone_number, is_active, created_at).
+ * We always normalise to camelCase here so the UI never needs to know.
+ */
+function normalizeUser(raw) {
+  if (!raw) return null;
+  return {
+    id: raw.id,
+    name: raw.name,
+    email: raw.email,
+    role: raw.role,
+    phoneNumber: raw.phoneNumber ?? raw.phone_number ?? null,
+    isActive: raw.isActive ?? raw.is_active ?? true,
+    createdAt: raw.createdAt ?? raw.created_at ?? null,
+  };
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -57,6 +77,7 @@ export function AuthProvider({ children }) {
           balance: res.wallet.balance,
           currency: res.wallet.currency,
           status: res.wallet.status,
+          createdAt: res.wallet.createdAt ?? null,
         });
       }
     } catch {
@@ -78,14 +99,23 @@ export function AuthProvider({ children }) {
   const refresh = useCallback(async () => {
     try {
       const res = await walletApi.profile();
-      setUser(res?.user || null);
-      if (res?.user) {
+      const normalized = normalizeUser(res?.user);
+      setUser(normalized);
+      if (normalized) {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("walletx_has_session", "true");
+          window.sessionStorage.setItem("walletx_session", "true");
+        }
         await fetchWallet();
       } else {
         setWallet(EMPTY_WALLET);
       }
     } catch (err) {
       if (isSessionGone(err)) {
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem("walletx_has_session");
+          window.sessionStorage.removeItem("walletx_session");
+        }
         setUser(null);
         setWallet(EMPTY_WALLET);
       }
@@ -100,7 +130,11 @@ export function AuthProvider({ children }) {
       // The login response already contains the verified user from the backend,
       // so we use it directly without an extra /users/me round-trip.
       const res = await walletApi.login(credentials);
-      setUser(res.user);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("walletx_has_session", "true");
+        window.sessionStorage.setItem("walletx_session", "true");
+      }
+      setUser(normalizeUser(res.user));
       await fetchWallet();
       return res;
     },
@@ -116,25 +150,31 @@ export function AuthProvider({ children }) {
     try {
       await walletApi.logout();
     } finally {
-      // Clear client state regardless of whether the server request succeeded,
-      // so stale cookies being rejected by the backend don't block the user.
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("walletx_has_session");
+        window.sessionStorage.removeItem("walletx_session");
+      }
       setUser(null);
       setWallet(EMPTY_WALLET);
     }
   }, []);
 
   // Startup session restoration.
-  // Rules:
-  //  - Run once on mount; cancel if the component unmounts before completion.
-  //  - The Axios interceptor in axios.js will silently attempt a token refresh
-  //    on any 401 before the promise here sees the error. Only if both the
-  //    original request AND the refresh fail will we receive an error here.
-  //  - A genuine 401/403 from the backend means the session cannot be restored.
-  //  - Any network / server / timeout error must NOT clear the user — we keep
-  //    loading=true briefly and then resolve loading without a redirect, so
-  //    the user stays on whatever page they were on and can retry naturally.
+  // Only attempts profile restore if a previous session was established.
+  // For unauthenticated visitors, loading resolves immediately to false without 401 calls.
   useEffect(() => {
     let active = true;
+
+    const hasSession =
+      typeof window !== "undefined" &&
+      (window.localStorage.getItem("walletx_has_session") === "true" ||
+        window.sessionStorage.getItem("walletx_session") === "true");
+
+    if (!hasSession) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
 
     // Deduplicate concurrent calls — only one profile request should be in
     // flight at any given time.
@@ -147,7 +187,11 @@ export function AuthProvider({ children }) {
     profileInflight.current
       .then(async (res) => {
         if (!active) return;
-        const restoredUser = res?.user ?? null;
+        const restoredUser = normalizeUser(res?.user ?? null);
+        if (restoredUser && typeof window !== "undefined") {
+          window.localStorage.setItem("walletx_has_session", "true");
+          window.sessionStorage.setItem("walletx_session", "true");
+        }
         setUser(restoredUser);
         if (restoredUser) {
           await fetchWallet();
@@ -156,13 +200,13 @@ export function AuthProvider({ children }) {
       .catch((err) => {
         if (!active) return;
         if (isSessionGone(err)) {
-          // Backend confirmed no valid session — safe to redirect to login.
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem("walletx_has_session");
+            window.sessionStorage.removeItem("walletx_session");
+          }
           setUser(null);
           setWallet(EMPTY_WALLET);
         }
-        // Transient error (network, 500, timeout): leave user as null but do
-        // NOT actively redirect. ProtectedRoute will show the loading screen
-        // briefly; the user stays on their page.
       })
       .finally(() => {
         if (active) setLoading(false);

@@ -1,35 +1,382 @@
+/* Security Page Styling (Matches Security.png) */
+
 .security-page {
-  width: 100%;
+  padding: 1.5rem 2rem 3rem;
+  max-width: 1240px;
+  margin: 0 auto;
 }
 
-.shield-icon {
+.security-page-header {
+  margin-bottom: 2rem;
+}
+
+.security-page-title {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+  margin: 0 0 0.25rem;
+}
+
+.security-page-subtitle {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin: 0;
+}
+
+/* ================= 2-COLUMN GRID ================= */
+.security-main-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+/* ================= LEFT COLUMN ================= */
+
+/* Freeze Card (Pink/Red accent) */
+.sec-freeze-card {
+  background: #ffffff;
+  border: 1px solid #fecdd3;
+  border-radius: 16px;
+  padding: 2.25rem;
+  margin-bottom: 1.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.sec-freeze-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.sec-freeze-icon {
   width: 44px;
   height: 44px;
+  background: #ffe4e6;
   border-radius: 12px;
-  display: grid;
-  place-items: center;
-  font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+}
+
+.sec-freeze-title {
+  display: block;
+  font-size: 1.2rem;
   font-weight: 800;
+  color: #0f172a;
+}
+
+.sec-freeze-sub {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.sec-freeze-desc {
+  font-size: 0.92rem;
+  color: #334155;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.sec-freeze-warning {
+  background: #ffe4e6;
+  border: 1px solid #fecdd3;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.75rem;
+}
+
+.sec-freeze-warning p {
+  font-size: 0.85rem;
+  color: #9f1239;
+  font-weight: 500;
+  margin: 0;
+}
+
+.sec-freeze-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn-sec-cancel {
+  flex: 1;
+  height: 46px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.btn-sec-freeze {
+  flex: 1;
+  height: 46px;
+  background: #be123c;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-sec-freeze:hover {
+  background: #9f1239;
+}
+
+/* Active Sessions Card */
+.sec-sessions-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.sec-sessions-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.25rem;
+}
+
+.sec-sessions-subtitle {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 0 0 1.5rem;
+}
+
+.sec-sessions-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.sec-session-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.sec-session-row:last-child {
+  border-bottom: none;
+}
+
+.sec-session-icon {
+  font-size: 1.35rem;
+  opacity: 0.8;
+}
+
+.sec-session-info {
+  flex: 1;
+}
+
+.session-device-name {
+  display: block;
+  font-size: 0.92rem;
+  color: #0f172a;
+}
+
+.session-status {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.btn-session-revoke {
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-session-revoke:hover {
+  text-decoration: underline;
+}
+
+/* ================= RIGHT COLUMN ================= */
+
+/* UPI PIN Card */
+.sec-pin-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.sec-pin-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.25rem;
+}
+
+.sec-pin-subtitle {
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0 0 1.5rem;
+}
+
+.sec-pin-block {
+  margin-bottom: 1.5rem;
+}
+
+.sec-pin-block label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 0.5rem;
+}
+
+.sec-pin-boxes-row {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 0.4rem;
+}
+
+.sec-pin-box {
+  width: 44px;
+  height: 48px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.sec-pin-box.filled {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
+.sec-pin-box.dashed {
+  border-style: dashed;
+  color: #94a3b8;
+}
+
+.sec-pin-hidden-input {
+  width: 100%;
+  height: 38px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0 0.75rem;
+  font-size: 0.85rem;
+}
+
+.btn-sec-update-pin {
+  width: 100%;
+  height: 48px;
+  background: #0b1a30;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  transition: background-color 0.15s ease;
+}
+
+.btn-sec-update-pin:hover:not(:disabled) {
+  background: #061120;
+}
+
+.btn-sec-update-pin:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sec-pin-footer-note {
+  text-align: center;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin: 1.25rem 0 0;
+  line-height: 1.4;
+}
+
+/* Good Hygiene Card (Dark Navy) */
+.sec-hygiene-card {
+  background: #0b1a30;
+  color: #ffffff;
+  border-radius: 14px;
+  padding: 1.5rem 1.75rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.sec-hygiene-icon {
+  font-size: 1.4rem;
+  color: #3b82f6;
   flex-shrink: 0;
 }
 
-.shield-icon.success {
-  background: var(--green-subtle);
-  color: var(--green);
+.sec-hygiene-card p {
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  line-height: 1.5;
+  margin: 0;
 }
 
-.shield-icon.warning {
-  background: #fef3c7;
-  color: #92400e;
+.sec-hygiene-card strong {
+  color: #ffffff;
 }
 
-.status-badge-card {
-  border-radius: 12px !important;
-  border-color: var(--line) !important;
+/* Password confirmation modal */
+.sec-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 1rem;
 }
 
-.pin-set-note {
-  color: var(--muted);
+.sec-modal-card {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 2rem;
+  max-width: 440px;
+  width: 100%;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.2);
+}
+
+.sec-modal-card h3 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+}
+
+.sec-modal-card p {
   font-size: 0.88rem;
-  margin-top: 1rem;
+  color: #64748b;
+  margin-bottom: 1.25rem;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .security-main-grid {
+    grid-template-columns: 1fr;
+  }
 }
